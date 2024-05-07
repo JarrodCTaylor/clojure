@@ -7,7 +7,8 @@
 ;   You must not remove this notice, or any other, from this software.
 
 (ns clojure.instant
-  (:import [java.util Calendar Date GregorianCalendar TimeZone]
+  (:import (java.time LocalDateTime ZoneId ZoneOffset ZonedDateTime)
+           [java.util Calendar Date GregorianCalendar TimeZone]
            [java.sql Timestamp]))
 
 
@@ -242,14 +243,26 @@ offset, but truncating the subsecond fraction to milliseconds."
                            (if (neg? offset-sign) "-" "+")
                            offset-hours offset-minutes)))))
 
+;(defn- construct-date
+;  "Construct a java.util.Date, which expresses the original instant as
+;milliseconds since the epoch, UTC."
+;  [years months days hours minutes seconds nanoseconds
+;   offset-sign offset-hours offset-minutes]
+;  (.getTime (construct-calendar years months days
+;                                hours minutes seconds nanoseconds
+;                                offset-sign offset-hours offset-minutes)))
+
+(defn construct-zoned-date-time
+  [year month day hour minute second nano offset-sign offset-hours offset-minutes]
+  (let [local-date-time (LocalDateTime/of year month day hour minute second nano)
+        zone-offset (ZoneOffset/ofHoursMinutes (if (neg? offset-sign) (* -1 offset-hours) offset-hours) offset-minutes)
+        zone-id (ZoneId/ofOffset "UTC" zone-offset)]
+    (ZonedDateTime/of local-date-time zone-id)))
+
 (defn- construct-date
-  "Construct a java.util.Date, which expresses the original instant as
-milliseconds since the epoch, UTC."
-  [years months days hours minutes seconds nanoseconds
-   offset-sign offset-hours offset-minutes]
-  (.getTime (construct-calendar years months days
-                                hours minutes seconds nanoseconds
-                                offset-sign offset-hours offset-minutes)))
+  [year month day hour minute second nano offset-sign offset-hours offset-minutes]
+  (let [zdt (construct-zoned-date-time year month day hour minute second nano offset-sign offset-hours offset-minutes)]
+    (Date/from (.toInstant zdt))))
 
 (defn- construct-timestamp
   "Construct a java.sql.Timestamp, which has nanosecond precision."
