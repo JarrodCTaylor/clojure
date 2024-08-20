@@ -81,7 +81,7 @@ public class LocalVariablesSorter extends MethodVisitor {
    */
   public LocalVariablesSorter(
       final int access, final String descriptor, final MethodVisitor methodVisitor) {
-    this(Opcodes.ASM6, access, descriptor, methodVisitor);
+    this(/* latest api = */ Opcodes.ASM9, access, descriptor, methodVisitor);
     if (getClass() != LocalVariablesSorter.class) {
       throw new IllegalStateException();
     }
@@ -90,8 +90,8 @@ public class LocalVariablesSorter extends MethodVisitor {
   /**
    * Constructs a new {@link LocalVariablesSorter}.
    *
-   * @param api the ASM API version implemented by this visitor. Must be one of {@link
-   *     Opcodes#ASM4}, {@link Opcodes#ASM5}, {@link Opcodes#ASM6} or {@link Opcodes#ASM7_EXPERIMENTAL}.
+   * @param api the ASM API version implemented by this visitor. Must be one of the {@code
+   *     ASM}<i>x</i> values in {@link Opcodes}.
    * @param access access flags of the adapted method.
    * @param descriptor the method's descriptor (see {@link Type}).
    * @param methodVisitor the method visitor to which this adapter delegates calls.
@@ -107,7 +107,7 @@ public class LocalVariablesSorter extends MethodVisitor {
   }
 
   @Override
-  public void visitVarInsn(final int opcode, final int var) {
+  public void visitVarInsn(final int opcode, final int varIndex) {
     Type varType;
     switch (opcode) {
       case Opcodes.LLOAD:
@@ -134,12 +134,12 @@ public class LocalVariablesSorter extends MethodVisitor {
       default:
         throw new IllegalArgumentException("Invalid opcode " + opcode);
     }
-    super.visitVarInsn(opcode, remap(var, varType));
+    super.visitVarInsn(opcode, remap(varIndex, varType));
   }
 
   @Override
-  public void visitIincInsn(final int var, final int increment) {
-    super.visitIincInsn(remap(var, Type.INT_TYPE), increment);
+  public void visitIincInsn(final int varIndex, final int increment) {
+    super.visitIincInsn(remap(varIndex, Type.INT_TYPE), increment);
   }
 
   @Override
@@ -180,9 +180,9 @@ public class LocalVariablesSorter extends MethodVisitor {
   @Override
   public void visitFrame(
       final int type,
-      final int nLocal,
+      final int numLocal,
       final Object[] local,
-      final int nStack,
+      final int numStack,
       final Object[] stack) {
     if (type != Opcodes.F_NEW) { // Uncompressed frame.
       throw new IllegalArgumentException(
@@ -198,7 +198,7 @@ public class LocalVariablesSorter extends MethodVisitor {
     // Copy the types from 'local' to 'remappedLocals'. 'remappedLocals' already contains the
     // variables added with 'newLocal'.
     int oldVar = 0; // Old local variable index.
-    for (int i = 0; i < nLocal; ++i) {
+    for (int i = 0; i < numLocal; ++i) {
       Object localType = local[i];
       if (localType != Opcodes.TOP) {
         Type varType = OBJECT_TYPE;
@@ -221,20 +221,20 @@ public class LocalVariablesSorter extends MethodVisitor {
     // Remove TOP after long and double types as well as trailing TOPs.
     oldVar = 0;
     int newVar = 0;
-    int remappedNLocal = 0;
+    int remappedNumLocal = 0;
     while (oldVar < remappedLocalTypes.length) {
       Object localType = remappedLocalTypes[oldVar];
       oldVar += localType == Opcodes.LONG || localType == Opcodes.DOUBLE ? 2 : 1;
       if (localType != null && localType != Opcodes.TOP) {
         remappedLocalTypes[newVar++] = localType;
-        remappedNLocal = newVar;
+        remappedNumLocal = newVar;
       } else {
         remappedLocalTypes[newVar++] = Opcodes.TOP;
       }
     }
 
     // Visit the remapped frame.
-    super.visitFrame(type, remappedNLocal, remappedLocalTypes, nStack, stack);
+    super.visitFrame(type, remappedNumLocal, remappedLocalTypes, numStack, stack);
 
     // Restore the original value of 'remappedLocals'.
     remappedLocalTypes = oldRemappedLocals;
@@ -297,7 +297,7 @@ public class LocalVariablesSorter extends MethodVisitor {
    *     types for the current stack map frame must be updated in place in this array.
    */
   protected void updateNewLocals(final Object[] newLocals) {
-    // The default implementation does nothing.    
+    // The default implementation does nothing.
   }
 
   /**
@@ -321,11 +321,11 @@ public class LocalVariablesSorter extends MethodVisitor {
     remappedLocalTypes[local] = type;
   }
 
-  private int remap(final int var, final Type type) {
-    if (var + type.getSize() <= firstLocal) {
-      return var;
+  private int remap(final int varIndex, final Type type) {
+    if (varIndex + type.getSize() <= firstLocal) {
+      return varIndex;
     }
-    int key = 2 * var + type.getSize() - 1;
+    int key = 2 * varIndex + type.getSize() - 1;
     int size = remappedVariableIndices.length;
     if (key >= size) {
       int[] newRemappedVariableIndices = new int[Math.max(2 * size, key + 1)];
