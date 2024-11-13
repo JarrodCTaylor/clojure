@@ -37,6 +37,7 @@ import clojure.asm.Label;
 import clojure.asm.MethodVisitor;
 import clojure.asm.Opcodes;
 import clojure.asm.Type;
+import clojure.asm.InstructionAdapter;
 
 /**
  * A {@link MethodVisitor} with convenient methods to generate code. For example, using this
